@@ -1770,46 +1770,137 @@ function guardarCliente(ev,leadId){
   mostrarTicket(pedido,cliente);
   return false;
 }
+/* ================= TICKET DE VENTA =================
+   Un solo diseno para lo que se ve en pantalla y lo que sale impreso:
+   asi el ticket siempre queda cuadrado y con la misma informacion. */
+function ticketCSS(){
+  return `<style>
+.tk{font-family:'Segoe UI',Segoe,system-ui,Arial,sans-serif;color:#111;background:#fff;width:100%;max-width:150mm;margin:0 auto;font-size:12px;line-height:1.45;box-sizing:border-box;}
+.tk *{box-sizing:border-box;}
+.tk-cab{text-align:center;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:10px;}
+.tk-marca{font-size:18px;font-weight:800;letter-spacing:.5px;}
+.tk-sub{font-size:11px;color:#555;margin-top:3px;}
+.tk-datos{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px;}
+.tk-bloque{flex:1 1 46%;min-width:170px;}
+.tk-tit{font-size:9.5px;text-transform:uppercase;letter-spacing:.7px;color:#777;font-weight:700;margin-bottom:3px;}
+.tk-linea{font-size:11.5px;word-wrap:break-word;overflow-wrap:break-word;}
+.tk-linea strong{font-size:12.5px;}
+table.tk-tabla{width:100%;border-collapse:collapse;table-layout:fixed;margin:10px 0 0;}
+.tk-tabla th{font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;color:#555;text-align:left;border-bottom:1.5px solid #111;padding:5px 4px;font-weight:700;}
+.tk-tabla td{font-size:11.5px;padding:6px 4px;border-bottom:1px solid #e6e6e6;vertical-align:top;word-wrap:break-word;overflow-wrap:break-word;}
+.tk-num{text-align:right;white-space:nowrap;}
+.tk-cen{text-align:center;}
+.tk-mini{font-size:9.5px;color:#888;margin-top:1px;}
+table.tk-tot{width:100%;border-collapse:collapse;margin-top:2px;}
+.tk-tot td{padding:3px 4px;font-size:11.5px;}
+.tk-tot td.tk-num{text-align:right;white-space:nowrap;}
+.tk-tot tr.tk-grande td{font-size:15px;font-weight:800;border-top:2px solid #111;padding-top:8px;padding-bottom:2px;}
+.tk-pie{margin-top:14px;border-top:1px dashed #999;padding-top:8px;font-size:10.5px;color:#555;text-align:center;line-height:1.6;}
+.tk-nota{margin-top:10px;font-size:11px;background:#f4f4f4;border-left:3px solid #bbb;padding:6px 9px;word-wrap:break-word;}
+.tk-anulado{text-align:center;font-weight:800;color:#b00020;border:2px solid #b00020;padding:5px;margin-bottom:10px;letter-spacing:3px;font-size:12px;}
+@media print{
+  @page{size:A4;margin:14mm;}
+  body{margin:0;background:#fff;}
+  .tk{max-width:none;font-size:12px;}
+}
+</style>`;
+}
+function numeroTicket(pedido){
+  return 'ZB-'+String(pedido.id||'').slice(-6).toUpperCase();
+}
+function ticketHTML(pedido,cliente){
+  const c=cliente||{};
+  const subtotal=(pedido.subtotal!=null)?pedido.subtotal:pedido.items.reduce((s,it)=>s+it.cantidad*it.precioUnit,0);
+  const filas=pedido.items.map(it=>`<tr>
+      <td class="tk-cen">${esc(it.cantidad)}</td>
+      <td>${esc(it.producto)}${it.marca?`<div class="tk-mini">${esc(it.marca)}</div>`:''}</td>
+      <td class="tk-num">${money(it.precioUnit)}</td>
+      <td class="tk-num">${money(it.cantidad*it.precioUnit)}</td>
+    </tr>`).join('');
+  const lineaExtra=(etiqueta,monto,signo)=>`<tr><td>${etiqueta}</td><td class="tk-num">${signo||''}${money(monto)}</td></tr>`;
+  const envio=[
+    'Metodo: '+esc(pedido.metodoEnvio||'—'),
+    pedido.numeroOrden?'N.o de orden: '+esc(pedido.numeroOrden):'',
+    pedido.codigoEnvio?'Seguimiento: '+esc(pedido.codigoEnvio):'',
+    'Estado: '+esc(pedido.estadoEnvio||'—')
+  ].filter(Boolean).join('<br>');
+  const pago=[
+    'Metodo: '+esc(pedido.metodoPago||'—'),
+    pedido.pagoReferencia?'Referencia: '+esc(pedido.pagoReferencia):'',
+    'Estado: '+esc(pedido.estadoPago||'—')
+  ].filter(Boolean).join('<br>');
+  return `<div class="tk">
+    ${pedido.estadoPago==='cancelado'?'<div class="tk-anulado">PEDIDO CANCELADO</div>':''}
+    <div class="tk-cab">
+      <div class="tk-marca">Zona Bariatrica</div>
+      <div class="tk-sub">Ticket de venta ${esc(numeroTicket(pedido))} &middot; ${fechaBonita(pedido.fecha)}</div>
+    </div>
+    <div class="tk-datos">
+      <div class="tk-bloque">
+        <div class="tk-tit">Cliente</div>
+        <div class="tk-linea"><strong>${esc(tituloCliente(c))}</strong><br>
+        DNI: ${esc(c.dni||'—')}<br>
+        Tel: ${esc(c.telefono||'—')}</div>
+      </div>
+      <div class="tk-bloque">
+        <div class="tk-tit">Entrega</div>
+        <div class="tk-linea">${esc(direccionCompleta(c))}</div>
+      </div>
+    </div>
+    <table class="tk-tabla">
+      <colgroup><col style="width:12%"><col style="width:48%"><col style="width:20%"><col style="width:20%"></colgroup>
+      <thead><tr>
+        <th class="tk-cen">Cant.</th><th>Producto</th>
+        <th class="tk-num">P. unit.</th><th class="tk-num">Importe</th>
+      </tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <table class="tk-tot">
+      <colgroup><col style="width:70%"><col style="width:30%"></colgroup>
+      <tbody>
+        ${lineaExtra('Subtotal productos',subtotal)}
+        ${pedido.embalaje?lineaExtra('Embalaje',pedido.embalaje):''}
+        ${pedido.delivery?lineaExtra('Delivery',pedido.delivery):''}
+        ${pedido.descuento?lineaExtra('Descuento'+(pedido.motivoDescuento?' ('+esc(pedido.motivoDescuento)+')':''),pedido.descuento,'-'):''}
+        ${pedido.recargoTarjeta?lineaExtra('Recargo tarjeta ('+RECARGO_TARJETA+'%)',pedido.recargoTarjeta):''}
+        <tr class="tk-grande"><td>TOTAL</td><td class="tk-num">${money(pedido.total)}</td></tr>
+      </tbody>
+    </table>
+    <div class="tk-datos" style="margin-top:14px;">
+      <div class="tk-bloque">
+        <div class="tk-tit">Envio</div>
+        <div class="tk-linea">${envio}</div>
+      </div>
+      <div class="tk-bloque">
+        <div class="tk-tit">Pago</div>
+        <div class="tk-linea">${pago}</div>
+      </div>
+    </div>
+    ${pedido.notas?`<div class="tk-nota"><strong>Nota:</strong> ${esc(pedido.notas)}</div>`:''}
+    <div class="tk-pie">
+      Atendio: ${esc(pedido.atendidoPor||'—')}<br>
+      Gracias por tu compra. Cualquier consulta escribenos por WhatsApp.
+    </div>
+  </div>`;
+}
 // Vuelve a mostrar el ticket de un pedido ya guardado (desde el historial del cliente),
 // para poder imprimirlo despues y no solo en el momento de la venta.
 function verTicket(pedidoId){
   const pedido=porId(db.pedidos,pedidoId);
   if(!pedido){alert('No se encontro ese pedido.');return;}
-  mostrarTicket(pedido,porId(db.clientes,pedido.clienteId)||{},{titulo:'🧾 Ticket de venta',volverACliente:pedido.clienteId});
+  mostrarTicket(pedido,porId(db.clientes,pedido.clienteId)||{},{titulo:'Ticket de venta',volverACliente:pedido.clienteId});
 }
 function mostrarTicket(pedido,cliente,opciones){
   const op=opciones||{};
-  const filas=pedido.items.map(it=>`
-    <div class="item-linea">
-      <span>${it.cantidad}x ${esc(it.producto)} <span class="q">(${esc(it.marca)})</span></span>
-      <span>${money(it.cantidad*it.precioUnit)}</span>
-    </div>`).join('');
   abrirModal(`
-    <button class="cerrar-x" onclick="cerrarModal()">✕</button>
+    <button class="cerrar-x" onclick="cerrarModal()">&#10005;</button>
     <h3>${op.titulo||'✅ Pedido guardado'}</h3>
-    ${pedido.estadoPago==='cancelado'?'<div class="aviso" style="margin-bottom:8px;">Este pedido esta <strong>cancelado</strong>. El ticket es solo una copia de consulta.</div>':''}
-    <div id="ticketImprimible" class="card" style="background:var(--bg-soft);">
-      <div style="text-align:center;margin-bottom:8px;">
-        <strong>Zona Bariátrica</strong><br>
-        <span style="font-size:12px;color:var(--muted);">Ticket de venta · ${fechaBonita(pedido.fecha)}</span>
-      </div>
-      <div style="font-size:13px;margin-bottom:8px;">
-        <strong>${esc(tituloCliente(cliente))}</strong><br>
-        ${esc(cliente.dni||'sin DNI')} · ${esc(cliente.telefono||'—')}<br>
-        ${esc(direccionCompleta(cliente))}
-      </div>
-      <div style="border-top:1px dashed var(--border);padding-top:8px;">${filas}</div>
-      ${pedido.embalaje?`<div class="item-linea"><span>Embalaje</span><span>${money(pedido.embalaje)}</span></div>`:""}
-      ${pedido.delivery?`<div class="item-linea"><span>Delivery</span><span>${money(pedido.delivery)}</span></div>`:""}
-      ${pedido.descuento?`<div class="item-linea"><span>Descuento${pedido.motivoDescuento?" ("+esc(pedido.motivoDescuento)+")":""}</span><span>-${money(pedido.descuento)}</span></div>`:""}
-      ${pedido.recargoTarjeta?`<div class="item-linea"><span>Recargo tarjeta (${RECARGO_TARJETA}%)</span><span>${money(pedido.recargoTarjeta)}</span></div>`:""}
-      <div class="subtotal-box"><span>TOTAL</span><span>${money(pedido.total)}</span></div>
-      <div style="font-size:12px;color:var(--muted);margin-top:8px;">
-        Envío: ${esc(pedido.metodoEnvio)} · Pago: ${esc(pedido.metodoPago)} · Atendió: ${esc(pedido.atendidoPor)}
-      </div>
+    ${ticketCSS()}
+    <div id="ticketImprimible" style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;">
+      ${ticketHTML(pedido,cliente)}
     </div>
     <div class="acciones-modal">
-      <button type="button" class="btn-secundario" onclick="imprimirTicket('${pedido.id}')">🖨️ Imprimir ticket</button>
+      <button type="button" class="btn-secundario" onclick="imprimirTicket('${pedido.id}')">&#128424;&#65039; Imprimir ticket</button>
       ${op.volverACliente?`<button class="btn" onclick="abrirFichaCliente('${op.volverACliente}')">Volver al cliente</button>`:`<button class="btn" onclick="cerrarModal()">Listo</button>`}
     </div>`);
 }
@@ -1817,30 +1908,23 @@ function imprimirTicket(pedidoId){
   const pedido=porId(db.pedidos,pedidoId);
   if(!pedido){alert('No se encontro ese pedido.');return;}
   const cliente=porId(db.clientes,pedido.clienteId)||{};
-  const filas=pedido.items.map(it=>`<tr><td>${it.cantidad}x ${esc(it.producto)}</td><td style="text-align:right;">${money(it.cantidad*it.precioUnit)}</td></tr>`).join('');
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ticket</title>
-    <style>body{font-family:system-ui,sans-serif;font-size:13px;width:280px;margin:10px auto;}
-    table{width:100%;border-collapse:collapse;} td{padding:3px 0;} .tot{font-weight:700;border-top:1px dashed #999;padding-top:6px;}
-    h3{text-align:center;margin:0 0 2px;} .c{text-align:center;color:#555;font-size:11px;margin-bottom:10px;}</style>
-    </head><body>
-    <h3>Zona Bariátrica</h3>
-    <div class="c">Ticket de venta · ${fechaBonita(pedido.fecha)}</div>
-    <div><strong>${esc(tituloCliente(cliente))}</strong><br>${esc(cliente.dni||'')} · ${esc(cliente.telefono||'')}<br>${esc(direccionCompleta(cliente))}</div>
-    <table style="margin-top:8px;">${filas}
-      ${pedido.embalaje?`<tr><td>Embalaje</td><td style="text-align:right;">${money(pedido.embalaje)}</td></tr>`:""}
-      ${pedido.delivery?`<tr><td>Delivery</td><td style="text-align:right;">${money(pedido.delivery)}</td></tr>`:""}
-      ${pedido.descuento?`<tr><td>Descuento${pedido.motivoDescuento?" ("+esc(pedido.motivoDescuento)+")":""}</td><td style="text-align:right;">-${money(pedido.descuento)}</td></tr>`:""}
-      ${pedido.recargoTarjeta?`<tr><td>Recargo tarjeta (${RECARGO_TARJETA}%)</td><td style="text-align:right;">${money(pedido.recargoTarjeta)}</td></tr>`:""}
-      <tr class="tot"><td>TOTAL</td><td style="text-align:right;">${money(pedido.total)}</td></tr>
-    </table>
-    <div class="c" style="margin-top:10px;">Envío: ${esc(pedido.metodoEnvio)} · Pago: ${esc(pedido.metodoPago)}<br>Atendió: ${esc(pedido.atendidoPor)}<br>¡Gracias por tu compra!</div>
-    </body></html>`;
-  const w=window.open('','_blank','width=340,height=600');
-  if(!w){alert('El navegador bloqueó la ventana de impresión. Habilita las ventanas emergentes para este sitio.');return;}
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Ticket ${esc(numeroTicket(pedido))} - ${esc(tituloCliente(cliente))}</title>
+    ${ticketCSS()}
+    <style>body{margin:0;padding:16px;background:#f4f4f4;}
+    .tk{background:#fff;padding:18px;}
+    @media print{body{padding:0;background:#fff;} .tk{padding:0;}}</style>
+    </head><body>${ticketHTML(pedido,cliente)}</body></html>`;
+  const w=window.open('','_blank','width=760,height=820');
+  if(!w){alert('El navegador bloqueo la ventana de impresion. Habilita las ventanas emergentes para este sitio.');return;}
+  w.document.open();
   w.document.write(html);
   w.document.close();
   w.focus();
-  w.print();
+  // damos un instante para que la ventana termine de dibujar antes de abrir el dialogo
+  // de impresion; si no, algunos navegadores imprimen la hoja a medio armar.
+  setTimeout(function(){try{w.print();}catch(e){}},350);
 }
 
 /* ================= PEDIDOS ================= */
