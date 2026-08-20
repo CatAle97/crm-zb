@@ -1520,6 +1520,10 @@ function abrirFichaCliente(clienteId){
         </div>
         <div style="margin-top:4px;font-size:13px;">${p.items.map(it=>`${esc(it.cantidad)}x ${esc(it.producto)}`).join(', ')}</div>
         ${p.notas?`<div class="nota-linea" style="margin-top:6px;">${esc(p.notas)}</div>`:''}
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+          <button type="button" class="btn-secundario btn-chico" onclick="verTicket('${p.id}')">👁️ Ver ticket</button>
+          <button type="button" class="btn-secundario btn-chico" onclick="imprimirTicket('${p.id}')">🖨️ Imprimir ticket</button>
+        </div>
       </div>`).join('')}
     <div class="acciones-modal">
       ${c.activo===false?`<button type="button" class="btn" onclick="reactivarCliente('${c.id}')">Reactivar cliente</button>`:''}
@@ -1766,7 +1770,15 @@ function guardarCliente(ev,leadId){
   mostrarTicket(pedido,cliente);
   return false;
 }
-function mostrarTicket(pedido,cliente){
+// Vuelve a mostrar el ticket de un pedido ya guardado (desde el historial del cliente),
+// para poder imprimirlo despues y no solo en el momento de la venta.
+function verTicket(pedidoId){
+  const pedido=porId(db.pedidos,pedidoId);
+  if(!pedido){alert('No se encontro ese pedido.');return;}
+  mostrarTicket(pedido,porId(db.clientes,pedido.clienteId)||{},{titulo:'🧾 Ticket de venta',volverACliente:pedido.clienteId});
+}
+function mostrarTicket(pedido,cliente,opciones){
+  const op=opciones||{};
   const filas=pedido.items.map(it=>`
     <div class="item-linea">
       <span>${it.cantidad}x ${esc(it.producto)} <span class="q">(${esc(it.marca)})</span></span>
@@ -1774,7 +1786,8 @@ function mostrarTicket(pedido,cliente){
     </div>`).join('');
   abrirModal(`
     <button class="cerrar-x" onclick="cerrarModal()">✕</button>
-    <h3>✅ Pedido guardado</h3>
+    <h3>${op.titulo||'✅ Pedido guardado'}</h3>
+    ${pedido.estadoPago==='cancelado'?'<div class="aviso" style="margin-bottom:8px;">Este pedido esta <strong>cancelado</strong>. El ticket es solo una copia de consulta.</div>':''}
     <div id="ticketImprimible" class="card" style="background:var(--bg-soft);">
       <div style="text-align:center;margin-bottom:8px;">
         <strong>Zona Bariátrica</strong><br>
@@ -1797,12 +1810,13 @@ function mostrarTicket(pedido,cliente){
     </div>
     <div class="acciones-modal">
       <button type="button" class="btn-secundario" onclick="imprimirTicket('${pedido.id}')">🖨️ Imprimir ticket</button>
-      <button class="btn" onclick="cerrarModal()">Listo</button>
+      ${op.volverACliente?`<button class="btn" onclick="abrirFichaCliente('${op.volverACliente}')">Volver al cliente</button>`:`<button class="btn" onclick="cerrarModal()">Listo</button>`}
     </div>`);
 }
 function imprimirTicket(pedidoId){
   const pedido=porId(db.pedidos,pedidoId);
-  const cliente=porId(db.clientes,pedido.clienteId);
+  if(!pedido){alert('No se encontro ese pedido.');return;}
+  const cliente=porId(db.clientes,pedido.clienteId)||{};
   const filas=pedido.items.map(it=>`<tr><td>${it.cantidad}x ${esc(it.producto)}</td><td style="text-align:right;">${money(it.cantidad*it.precioUnit)}</td></tr>`).join('');
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ticket</title>
     <style>body{font-family:system-ui,sans-serif;font-size:13px;width:280px;margin:10px auto;}
@@ -1894,6 +1908,7 @@ function pintarPedidos(){
       <td>
         ${p.estadoPago!=='cancelado'?`
           <div style="display:flex;flex-direction:column;gap:4px;">
+            <button class="btn-secundario btn-chico" onclick="imprimirTicket('${p.id}')">🖨️ Ticket</button>
             <button class="btn-secundario btn-chico" onclick="abrirEditarPedido('${p.id}')">✏️ Editar</button>
             <button class="btn-peligro btn-chico" onclick="eliminarPedido('${p.id}')">Cancelar</button>
           </div>
